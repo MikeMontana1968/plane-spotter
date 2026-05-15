@@ -1,0 +1,28 @@
+[project]
+name = "plane-spotter"
+version = "0.1.0"
+description = "Detect and log aircraft passing through a webcam's field of view (motion + future audio fusion)."
+requires-python = ">=3.11"
+dependencies = [
+    "opencv-python>=4.9",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+audio = [
+    "sounddevice>=0.4.6",
+    "scipy>=1.11",
+]
+yolo = [
+    "ultralytics>=8.2",
+]
+
+[project.scripts]
+plane-spotter = "plane_spotter.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/plane_spotter"]

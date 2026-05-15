@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env
+.venv/
+venv/
+
+# uv
+.uv-cache/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+
+# Project output
+incidents/
+incidents.jsonl
+*.log
