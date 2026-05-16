@@ -23,3 +23,4 @@ dist/
 incidents/
 incidents.jsonl
 *.log
+*.log.*

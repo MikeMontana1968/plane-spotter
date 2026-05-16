@@ -46,6 +46,7 @@ class AudioMonitor:
         self._zi = None
         self._noise_floor = 0.0
         self._block_count = 0
+        self._consecutive_over = 0
         self._active = False
         # Logging state (callback thread only)
         self._last_logged_hot = False
@@ -142,7 +143,16 @@ class AudioMonitor:
         # Determine hot/cold (guard against near-zero noise floor)
         floor = max(self._noise_floor, 1e-10)
         ratio = rms / floor
-        is_hot = ratio > self.config.audio_threshold
+        over = ratio > self.config.audio_threshold
+        # Asymmetric hysteresis: require N consecutive over-threshold blocks
+        # to enter HOT; a single under-threshold block exits HOT immediately.
+        # This filters transient pops while staying responsive when the jet
+        # passes out of the band.
+        if over:
+            self._consecutive_over += 1
+        else:
+            self._consecutive_over = 0
+        is_hot = self._consecutive_over >= self.config.audio_hot_consecutive_blocks
 
         now = time.time()
         with self._lock:

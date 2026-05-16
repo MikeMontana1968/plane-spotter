@@ -13,13 +13,19 @@ class Config:
     # ---- Camera ---------------------------------------------------------
     # Index passed to cv2.VideoCapture. On Windows, GoPro Webcam usually
     # registers as the first/second device. Try 0, 1, 2 if the wrong cam opens.
-    camera_index: int = 1
+    camera_index: int = 0
     # On Windows, forcing the DirectShow backend tends to be more reliable
     # than the default MSMF for non-Microsoft cameras (GoPro, Elgato, etc.).
     use_dshow_backend: bool = True
     capture_width: int = 1920
     capture_height: int = 1080
     target_fps: int = 15
+    # Substrings of DirectShow device names that need MJPG forced. Without
+    # this, DSHOW negotiates raw YUY2 at 1080p and OpenCV mis-decodes it,
+    # producing a magenta cast (green channel effectively dropped). MJPG is
+    # decoded correctly. Match is case-insensitive substring on the device's
+    # friendly name. Leave empty to never force MJPG.
+    force_mjpg_camera_names: tuple[str, ...] = ("C920",)
 
     # ---- Pre-roll buffer ------------------------------------------------
     # How many seconds of frames to retain before an incident starts so we
@@ -93,20 +99,28 @@ class Config:
     audio_enabled: bool = True
     # Microphone device index for sounddevice. None = system default.
     audio_device: int | None = None
-    # Sample rate in Hz. 22050 is enough for our 50-300 Hz band of interest.
+    # Sample rate in Hz. 22050 is enough for our 80-200 Hz band of interest.
     audio_sample_rate: int = 22050
     # Block duration in seconds. Each callback receives this much audio.
     audio_block_seconds: float = 0.1
-    # Bandpass filter edges in Hz (jet rumble band).
-    audio_low_hz: float = 50.0
-    audio_high_hz: float = 300.0
+    # Bandpass filter edges in Hz. Narrowed to 80-200 Hz to favor jet rumble
+    # over wind buffeting (<80 Hz) and road/traffic noise (broadband).
+    audio_low_hz: float = 80.0
+    audio_high_hz: float = 200.0
     # Bandpass filter order (Butterworth).
     audio_filter_order: int = 4
     # How many times above the noise floor RMS must be to trigger "hot".
-    audio_threshold: float = 3.0
-    # EMA smoothing factor for the noise floor. Smaller = slower adaptation.
-    # 0.002 at 0.1s blocks ~ 50-second time constant.
-    audio_noise_floor_alpha: float = 0.002
+    # Empirically, real jet passes peak at 15-40x. 3x was just clearing the
+    # noise floor and firing on every transient.
+    audio_threshold: float = 8.0
+    # Require this many consecutive over-threshold blocks before flipping
+    # audio_hot True. At 0.1s blocks, 5 = 0.5s of sustained rumble. A single
+    # block below threshold flips back to cold (asymmetric hysteresis).
+    audio_hot_consecutive_blocks: int = 5
+    # EMA smoothing factor for the noise floor. Larger = faster adaptation
+    # so the floor catches up to sustained ambient (afternoon traffic, wind)
+    # and stops firing. 0.005 at 0.1s blocks ~ 20-second time constant.
+    audio_noise_floor_alpha: float = 0.005
     # Number of initial blocks to skip before allowing triggers (warm-up).
     # At 0.1s blocks, 50 = 5 seconds of silence to establish baseline.
     audio_warmup_blocks: int = 50

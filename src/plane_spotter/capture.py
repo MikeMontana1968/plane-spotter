@@ -19,6 +19,26 @@ import cv2
 logger = logging.getLogger(__name__)
 
 
+def _lookup_dshow_device_name(index: int) -> Optional[str]:
+    """Return the DirectShow friendly name at `index`, or None if unavailable.
+
+    Uses pygrabber on Windows; silently returns None elsewhere or if the
+    package isn't installed.
+    """
+    try:
+        from pygrabber.dshow_graph import FilterGraph
+    except Exception:
+        return None
+    try:
+        devices = FilterGraph().get_input_devices()
+    except Exception as e:
+        logger.debug("dshow enumeration failed: %s", e)
+        return None
+    if 0 <= index < len(devices):
+        return devices[index]
+    return None
+
+
 class FrameSource:
     def __init__(self, config):
         self.config = config
@@ -40,6 +60,16 @@ class FrameSource:
                 f"Could not open camera index {self.config.camera_index}. "
                 f"Try a different index or toggle use_dshow_backend in config."
             )
+
+        device_name = _lookup_dshow_device_name(self.config.camera_index)
+        if device_name:
+            logger.info("camera %d: %s", self.config.camera_index, device_name)
+            name_lower = device_name.lower()
+            if any(s.lower() in name_lower for s in self.config.force_mjpg_camera_names):
+                fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+                self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+                logger.info("forcing MJPG fourcc for %s", device_name)
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.capture_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.capture_height)
         self.cap.set(cv2.CAP_PROP_FPS, self.config.target_fps)
