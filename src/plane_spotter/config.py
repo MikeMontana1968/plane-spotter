@@ -11,9 +11,11 @@ from pathlib import Path
 @dataclass
 class Config:
     # ---- Camera ---------------------------------------------------------
-    # Index passed to cv2.VideoCapture. On Windows, GoPro Webcam usually
-    # registers as the first/second device. Try 0, 1, 2 if the wrong cam opens.
-    camera_index: int = 0
+    # Case-insensitive substring of the DirectShow device's friendly name.
+    # At startup the available cameras are enumerated and the first match
+    # is used; if nothing matches, startup fails with the list of devices
+    # that were found so this can be corrected. Examples: "C920", "GoPro".
+    camera_name: str = "C920"
     # On Windows, forcing the DirectShow backend tends to be more reliable
     # than the default MSMF for non-Microsoft cameras (GoPro, Elgato, etc.).
     use_dshow_backend: bool = True

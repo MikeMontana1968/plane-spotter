@@ -19,24 +19,40 @@ import cv2
 logger = logging.getLogger(__name__)
 
 
-def _lookup_dshow_device_name(index: int) -> Optional[str]:
-    """Return the DirectShow friendly name at `index`, or None if unavailable.
+def _enumerate_dshow_devices() -> list[str]:
+    """Return DirectShow input device names in index order.
 
-    Uses pygrabber on Windows; silently returns None elsewhere or if the
-    package isn't installed.
+    Raises RuntimeError if pygrabber is unavailable or enumeration fails —
+    we can't honor a name-based camera selection without it.
     """
     try:
         from pygrabber.dshow_graph import FilterGraph
-    except Exception:
-        return None
+    except ImportError as e:
+        raise RuntimeError(
+            "pygrabber is required for name-based camera selection. "
+            "Run 'uv sync'."
+        ) from e
     try:
-        devices = FilterGraph().get_input_devices()
+        return list(FilterGraph().get_input_devices())
     except Exception as e:
-        logger.debug("dshow enumeration failed: %s", e)
-        return None
-    if 0 <= index < len(devices):
-        return devices[index]
-    return None
+        raise RuntimeError(f"DirectShow camera enumeration failed: {e}") from e
+
+
+def _resolve_camera_index(name: str) -> tuple[int, str]:
+    """Find the first device whose friendly name contains `name` (case-insensitive).
+
+    Returns (index, full_device_name). Raises RuntimeError listing the
+    available devices if no match is found.
+    """
+    devices = _enumerate_dshow_devices()
+    needle = name.lower()
+    for i, dev in enumerate(devices):
+        if needle in dev.lower():
+            return i, dev
+    listing = "\n  ".join(f"[{i}] {d}" for i, d in enumerate(devices)) or "(none)"
+    raise RuntimeError(
+        f"No camera matched name '{name}'. Available devices:\n  {listing}"
+    )
 
 
 class FrameSource:
@@ -51,24 +67,25 @@ class FrameSource:
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
+        index, device_name = _resolve_camera_index(self.config.camera_name)
+        logger.info("camera resolved: '%s' -> [%d] %s",
+                    self.config.camera_name, index, device_name)
+
         if self.config.use_dshow_backend:
-            self.cap = cv2.VideoCapture(self.config.camera_index, cv2.CAP_DSHOW)
+            self.cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
         else:
-            self.cap = cv2.VideoCapture(self.config.camera_index)
+            self.cap = cv2.VideoCapture(index)
         if not self.cap.isOpened():
             raise RuntimeError(
-                f"Could not open camera index {self.config.camera_index}. "
-                f"Try a different index or toggle use_dshow_backend in config."
+                f"Could not open camera [{index}] {device_name!r}. "
+                f"Try toggling use_dshow_backend in config."
             )
 
-        device_name = _lookup_dshow_device_name(self.config.camera_index)
-        if device_name:
-            logger.info("camera %d: %s", self.config.camera_index, device_name)
-            name_lower = device_name.lower()
-            if any(s.lower() in name_lower for s in self.config.force_mjpg_camera_names):
-                fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-                self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-                logger.info("forcing MJPG fourcc for %s", device_name)
+        name_lower = device_name.lower()
+        if any(s.lower() in name_lower for s in self.config.force_mjpg_camera_names):
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            logger.info("forcing MJPG fourcc for %s", device_name)
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.capture_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.capture_height)
