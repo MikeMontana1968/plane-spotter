@@ -71,6 +71,10 @@ class Config:
     save_every_n_frames: int = 7
     # JPEG quality 0-100. 90 is a reasonable balance.
     jpeg_quality: int = 90
+    # Save raw mono audio (preroll + active span) as audio.wav alongside the
+    # JPEGs in each incident folder. Enables later FFT/spectrogram analysis
+    # for aircraft type fingerprinting. ~5 MB/min at 22 kHz int16.
+    save_incident_audio: bool = True
 
     # ---- UI -------------------------------------------------------------
     show_preview: bool = True
@@ -118,15 +122,17 @@ class Config:
     # How many times above the noise floor RMS must be to trigger "hot".
     # Empirically, real jet passes peak at 15-40x. 3x was just clearing the
     # noise floor and firing on every transient.
-    audio_threshold: float = 8.0
+    audio_threshold: float = 5.0
     # Require this many consecutive over-threshold blocks before flipping
     # audio_hot True. At 0.1s blocks, 5 = 0.5s of sustained rumble. A single
     # block below threshold flips back to cold (asymmetric hysteresis).
     audio_hot_consecutive_blocks: int = 5
-    # EMA smoothing factor for the noise floor. Larger = faster adaptation
-    # so the floor catches up to sustained ambient (afternoon traffic, wind)
-    # and stops firing. 0.005 at 0.1s blocks ~ 20-second time constant.
-    audio_noise_floor_alpha: float = 0.005
+    # EMA smoothing factor for the noise floor. Larger = faster adaptation.
+    # 0.002 at 0.1s blocks ~ 50-second time constant. Slow adaptation matters
+    # in reverberant environments (glass facades) where a single jet event
+    # can last 30-60s; faster adaptation would absorb the event into the
+    # floor partway through and drop the trigger mid-pass.
+    audio_noise_floor_alpha: float = 0.002
     # Number of initial blocks to skip before allowing triggers (warm-up).
     # At 0.1s blocks, 50 = 5 seconds of silence to establish baseline.
     audio_warmup_blocks: int = 50

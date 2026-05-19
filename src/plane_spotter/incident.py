@@ -59,8 +59,9 @@ def _draw_timestamp(frame, ts: float) -> None:
 
 
 class IncidentManager:
-    def __init__(self, config):
+    def __init__(self, config, audio=None):
         self.config = config
+        self.audio = audio  # AudioMonitor, optional — used for per-incident WAV
         self.state = State.IDLE
         self.current_dir: Optional[Path] = None
         self.incident_start: Optional[float] = None
@@ -154,6 +155,9 @@ class IncidentManager:
             fname = self.current_dir / f"preroll_{i:04d}.jpg"
             cv2.imwrite(str(fname), stamped, encode_params)
 
+        if self.audio is not None and self.config.save_incident_audio:
+            self.audio.start_incident_recording()
+
         logger.info("incident started -> %s", self.current_dir.name)
 
     def _save_frame(self, ts: float, frame, blobs: list) -> None:
@@ -172,6 +176,14 @@ class IncidentManager:
 
     def _end_incident(self, ts: float) -> None:
         duration = ts - (self.incident_start or ts)
+
+        if (
+            self.audio is not None
+            and self.config.save_incident_audio
+            and self.current_dir is not None
+        ):
+            self.audio.stop_incident_recording_and_save(self.current_dir / "audio.wav")
+
         record = {
             "start": self.incident_start,
             "end": ts,

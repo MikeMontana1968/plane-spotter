@@ -60,9 +60,9 @@ def run() -> None:
     src.start()
     detector = MotionDetector(config)
     tracker = Tracker(config)
-    incidents = IncidentManager(config)
     audio = AudioMonitor(config)
     audio.start()
+    incidents = IncidentManager(config, audio=audio)
 
     stop_flag = {"v": False}
 

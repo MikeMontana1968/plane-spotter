@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
+from pathlib import Path
 
 import numpy as np
 
@@ -68,6 +70,16 @@ class AudioMonitor:
         self._block_count = 0
         self._consecutive_over = 0
         self._active = False
+
+        # Recording state — preroll is a bounded ring of raw (unfiltered)
+        # blocks for the same preroll window the camera uses. _recording
+        # samples accumulate when an incident is active. Both touched under
+        # _rec_lock since the callback writes and the main thread reads.
+        self._rec_lock = threading.Lock()
+        self._preroll_blocks: deque = deque()
+        self._preroll_max_blocks = 0
+        self._recording_blocks: list = []
+        self._recording = False
         # Logging state (callback thread only)
         self._last_logged_hot = False
         self._summary_start_ts = 0.0
@@ -110,6 +122,12 @@ class AudioMonitor:
 
         blocksize = int(self.config.audio_sample_rate * self.config.audio_block_seconds)
 
+        # Size the preroll ring to match the visual preroll.
+        self._preroll_max_blocks = max(
+            1, int(self.config.preroll_seconds / self.config.audio_block_seconds)
+        )
+        self._preroll_blocks = deque(maxlen=self._preroll_max_blocks)
+
         device_index, device_name = _resolve_audio_device(self.config.audio_device_name)
         logger.info("audio device resolved: '%s' -> [%d] %s",
                     self.config.audio_device_name, device_index, device_name)
@@ -142,8 +160,16 @@ class AudioMonitor:
         if status:
             logger.debug("Audio callback status: %s", status)
 
-        # indata shape: (blocksize, 1) float32 — squeeze to 1D
-        block = indata[:, 0]
+        # indata shape: (blocksize, 1) float32 — squeeze to 1D.
+        # Copy before stashing because PortAudio reuses the underlying buffer.
+        block = indata[:, 0].copy()
+
+        # Maintain raw preroll ring and active recording (under lock so the
+        # main thread can snapshot consistently on incident end).
+        with self._rec_lock:
+            self._preroll_blocks.append(block)
+            if self._recording:
+                self._recording_blocks.append(block)
 
         # Apply bandpass filter with state carry-over
         filtered, self._zi = sosfilt(self._sos, block, zi=self._zi)
@@ -217,6 +243,42 @@ class AudioMonitor:
             self._summary_hot_blocks = 0
             self._summary_rms_sum = 0.0
             self._summary_peak_ratio = 0.0
+
+    def start_incident_recording(self) -> None:
+        """Begin accumulating raw samples; preroll ring is already populated."""
+        if not self._active:
+            return
+        with self._rec_lock:
+            self._recording_blocks = []
+            self._recording = True
+
+    def stop_incident_recording_and_save(self, wav_path: Path) -> None:
+        """Stop accumulating and write preroll + recording to wav_path as int16 PCM.
+
+        Safe to call even if recording was never started (writes whatever
+        preroll exists). No-op if audio isn't active.
+        """
+        if not self._active:
+            return
+        with self._rec_lock:
+            self._recording = False
+            preroll = list(self._preroll_blocks)
+            active = self._recording_blocks
+            self._recording_blocks = []
+        if not preroll and not active:
+            return
+        try:
+            from scipy.io import wavfile
+            samples = np.concatenate(preroll + active)
+            # float32 [-1,1] -> int16 PCM for max player compatibility.
+            samples_i16 = np.clip(samples * 32767.0, -32768, 32767).astype(np.int16)
+            wavfile.write(str(wav_path), self.config.audio_sample_rate, samples_i16)
+            logger.info(
+                "saved %s (%.1fs audio)",
+                wav_path.name, len(samples_i16) / self.config.audio_sample_rate,
+            )
+        except Exception:
+            logger.exception("failed to save incident audio to %s", wav_path)
 
     def stop(self) -> None:
         if self._stream is not None:
