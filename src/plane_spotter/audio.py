@@ -29,6 +29,26 @@ except ImportError:
     _AUDIO_AVAILABLE = False
 
 
+def _resolve_audio_device(name: str) -> tuple[int, str]:
+    """Find the first input device whose name contains `name` (case-insensitive).
+
+    Returns (index, device_name). Raises RuntimeError listing the available
+    input devices if no match is found.
+    """
+    needle = name.lower()
+    devices = sd.query_devices()
+    for i, d in enumerate(devices):
+        if d["max_input_channels"] > 0 and needle in d["name"].lower():
+            return i, d["name"]
+    listing = "\n  ".join(
+        f"[{i}] {d['name']}"
+        for i, d in enumerate(devices) if d["max_input_channels"] > 0
+    ) or "(none)"
+    raise RuntimeError(
+        f"No input device matched name '{name}'. Available input devices:\n  {listing}"
+    )
+
+
 class AudioMonitor:
     """Monitors microphone input for low-frequency rumble (aircraft noise)."""
 
@@ -90,11 +110,15 @@ class AudioMonitor:
 
         blocksize = int(self.config.audio_sample_rate * self.config.audio_block_seconds)
 
+        device_index, device_name = _resolve_audio_device(self.config.audio_device_name)
+        logger.info("audio device resolved: '%s' -> [%d] %s",
+                    self.config.audio_device_name, device_index, device_name)
+
         try:
             self._stream = sd.InputStream(
                 samplerate=self.config.audio_sample_rate,
                 blocksize=blocksize,
-                device=self.config.audio_device,
+                device=device_index,
                 channels=1,
                 dtype="float32",
                 callback=self._callback,
@@ -102,8 +126,8 @@ class AudioMonitor:
             self._stream.start()
             self._active = True
             logger.info(
-                "Audio monitoring started (device=%s, sr=%d, block=%d samples)",
-                self.config.audio_device,
+                "Audio monitoring started (device=[%d] %s, sr=%d, block=%d samples)",
+                device_index, device_name,
                 self.config.audio_sample_rate,
                 blocksize,
             )

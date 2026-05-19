@@ -99,8 +99,12 @@ class Config:
     # ---- Audio trigger ---------------------------------------------------
     # Set False to disable audio monitoring even if deps are installed.
     audio_enabled: bool = True
-    # Microphone device index for sounddevice. None = system default.
-    audio_device: int | None = None
+    # Case-insensitive substring of the desired input device's name. At
+    # startup the input devices are enumerated and the first match wins;
+    # if nothing matches, startup fails with the full device list. Use the
+    # camera's built-in mic ("C920") so the audio is co-located with the
+    # lens — laptop mics pick up cabin noise instead of overhead rumble.
+    audio_device_name: str = "C920"
     # Sample rate in Hz. 22050 is enough for our 80-200 Hz band of interest.
     audio_sample_rate: int = 22050
     # Block duration in seconds. Each callback receives this much audio.
