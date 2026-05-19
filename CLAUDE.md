@@ -95,9 +95,10 @@ uv run python -m plane_spotter
 To enable optional extras later:
 
 ```powershell
-uv sync --extra audio       # sounddevice, scipy
 uv sync --extra yolo        # ultralytics
 ```
+
+(sounddevice and scipy are core deps — audio is always on.)
 
 ## Current state
 

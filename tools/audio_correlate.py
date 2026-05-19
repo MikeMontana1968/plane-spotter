@@ -14,16 +14,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 LOG = Path(__file__).resolve().parents[1] / "plane-spotter.log"
-DAY = "2026-05-15"  # only correlate today's events
+DAY = "2026-05-18"  # only correlate today's events
 WINDOW_MIN = 3      # ± minutes around each reported time
 
 # User's casual notes of times they heard a jet overhead.
-# 12:08-12:18 cluster reads as PM since 3:30/4:15 are PM; treat all post-noon
-# as PM (so 12:08 == 12:08, 3:30 == 15:30, 4:15 == 16:15).
 REPORTED = [
-    "08:42", "09:30", "10:05", "10:09",
-    "11:45", "12:08", "12:12", "12:18",
-    "15:30", "16:15",
+    "11:47", "11:48",
+    "14:49", "15:04", "15:08",
+    "16:36", "16:37",
 ]
 
 HOT_RE = re.compile(

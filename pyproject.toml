@@ -7,13 +7,11 @@ dependencies = [
     "opencv-python>=4.9",
     "numpy>=1.26",
     "pygrabber>=0.2 ; sys_platform == 'win32'",
-]
-
-[project.optional-dependencies]
-audio = [
     "sounddevice>=0.4.6",
     "scipy>=1.11",
 ]
+
+[project.optional-dependencies]
 yolo = [
     "ultralytics>=8.2",
 ]

@@ -1045,13 +1045,11 @@ dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "pygrabber", marker = "sys_platform == 'win32'" },
-]
-
-[package.optional-dependencies]
-audio = [
     { name = "scipy" },
     { name = "sounddevice" },
 ]
+
+[package.optional-dependencies]
 yolo = [
     { name = "ultralytics" },
 ]
@@ -1061,11 +1059,11 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "opencv-python", specifier = ">=4.9" },
     { name = "pygrabber", marker = "sys_platform == 'win32'", specifier = ">=0.2" },
-    { name = "scipy", marker = "extra == 'audio'", specifier = ">=1.11" },
-    { name = "sounddevice", marker = "extra == 'audio'", specifier = ">=0.4.6" },
+    { name = "scipy", specifier = ">=1.11" },
+    { name = "sounddevice", specifier = ">=0.4.6" },
     { name = "ultralytics", marker = "extra == 'yolo'", specifier = ">=8.2" },
 ]
-provides-extras = ["audio", "yolo"]
+provides-extras = ["yolo"]
 
 [[package]]
 name = "polars"
