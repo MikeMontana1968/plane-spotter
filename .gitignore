@@ -18,6 +18,7 @@ dist/
 # Editor
 .vscode/
 .idea/
+.claude/
 
 # Project output
 incidents/
